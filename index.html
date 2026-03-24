@@ -190,6 +190,10 @@ body{background:#f5f5f0;font-family:'Questrial',sans-serif;font-size:14px;color:
 .match-linkedin{background:#e8f0fe;color:#1a56db}
 .match-both{background:#fef3cd;color:#92400e}
 </style>
+
+<!-- Firebase SDK (Realtime Database) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
 <body>
 
@@ -346,6 +350,24 @@ body{background:#f5f5f0;font-family:'Questrial',sans-serif;font-size:14px;color:
 <div class="save-toast" id="saveToast"><span class="save-dot"></span><span id="toast-msg">Master list updated</span></div>
 
 <script>
+// ============================================================
+// FIREBASE CONFIG — same project as dripifymessaging
+// ============================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyBj9ULzJn6MXlyhstvUUXTwIljMXE3hLqs",
+  authDomain: "messaging-301cf.firebaseapp.com",
+  databaseURL: "https://messaging-301cf-default-rtdb.firebaseio.com",
+  projectId: "messaging-301cf",
+  storageBucket: "messaging-301cf.firebasestorage.app",
+  messagingSenderId: "935238178606",
+  appId: "1:935238178606:web:b8b576ecd36d2b5c5accbf",
+  measurementId: "G-ZSDW7WGMWZ"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const listRef = db.ref('listwasher');
+
 // ============================================================
 // CONFIG & STATE
 // ============================================================
@@ -1007,25 +1029,28 @@ document.getElementById('masterSearch').addEventListener('input', function() {
 });
 
 // ============================================================
+// STORAGE — persist via Firebase Realtime Database (same as dripifymessaging)
 // ============================================================
-// STORAGE — persist master list + lists registry across sessions
-// ============================================================
-const STORAGE_KEY = 'designbees_master';
 
 async function saveToStorage() {
   try {
-    const payload = JSON.stringify({ masterList: state.masterList, lists: state.lists });
-    await window.storage.set(STORAGE_KEY, payload, true); // shared = true so whole org sees same data
+    await listRef.set({
+      masterList: state.masterList,
+      lists: state.lists,
+      updatedAt: new Date().toISOString()
+    });
+    console.log('Saved to Firebase —', state.masterList.length, 'contacts');
   } catch(e) {
-    console.warn('Storage save failed:', e);
+    console.error('Firebase save failed:', e);
+    showToast('Save failed — check console for details');
   }
 }
 
 async function loadFromStorage() {
   try {
-    const result = await window.storage.get(STORAGE_KEY, true);
-    if(result && result.value) {
-      const data = JSON.parse(result.value);
+    const snap = await listRef.once('value');
+    if(snap.exists()) {
+      const data = snap.val();
       if(data.masterList && data.lists) {
         state.masterList = data.masterList;
         state.lists = data.lists;
@@ -1033,7 +1058,8 @@ async function loadFromStorage() {
       }
     }
   } catch(e) {
-    // No saved data yet — that's fine
+    console.error('Firebase load failed:', e);
+    showToast('Could not load data — check Firebase config');
   }
   return false;
 }
